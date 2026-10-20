@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useItinerary } from '../hooks/useItinerary';
 import { useTripExpenses } from '../hooks/useTripExpenses';
+import { useBookings } from '../hooks/useBookings';
 
 import BudgetHeader from '../components/budget/BudgetHeader';
 import BudgetSummaryRow from '../components/budget/BudgetSummaryRow';
@@ -10,8 +11,10 @@ import BudgetOverviewTab from '../components/budget/BudgetOverviewTab';
 import BudgetByDayTab from '../components/budget/BudgetByDayTab';
 import BudgetByCategoryTab from '../components/budget/BudgetByCategoryTab';
 import ActualExpensesTab from '../components/budget/ActualExpensesTab';
+import BookingsTab from '../components/budget/BookingsTab';
 import SetBudgetTargetModal from '../components/budget/SetBudgetTargetModal';
 import LogExpenseModal from '../components/budget/LogExpenseModal';
+import AddBookingModal from '../components/budget/AddBookingModal';
 
 export default function BudgetView() {
   const { tripId } = useParams();
@@ -24,11 +27,24 @@ export default function BudgetView() {
     totalActualExpenses,
     addExpense,
     deleteExpense,
+    isRealtimeConnected: isExpensesRealtime,
   } = useTripExpenses(tripId, trip?.budget);
 
-  const [currentTab, setCurrentTab] = useState('Overview');
+  // Hook for bookings (Module 4.5, FR-17 to FR-20)
+  const {
+    bookings,
+    totalBookingCost,
+    addBooking,
+    deleteBooking,
+    isRealtimeConnected: isBookingsRealtime,
+  } = useBookings(tripId, { start: trip?.start_date, end: trip?.end_date });
+
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'Overview';
+  const [currentTab, setCurrentTab] = useState(initialTab);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLogExpenseOpen, setIsLogExpenseOpen] = useState(false);
+  const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
 
   // Combine real activities + synthetic "stay" / "transport" expenses from trip_stops
   const expenses = useMemo(() => {
@@ -129,13 +145,16 @@ export default function BudgetView() {
     );
   }
 
+  // FR-19: Include recorded booking costs in overall actual expenses
+  const combinedActualExpenses = totalActualExpenses + totalBookingCost;
+
   return (
     <div className="min-h-screen bg-bg flex flex-col">
       <BudgetHeader trip={trip} currentTab={currentTab} setCurrentTab={setCurrentTab} />
       
       <BudgetSummaryRow 
         totalCost={totalCost} 
-        actualExpensesTotal={totalActualExpenses}
+        actualExpensesTotal={combinedActualExpenses}
         tripLength={tripLength} 
         budgetTarget={trip.budget} 
         onSetBudget={() => setIsModalOpen(true)}
@@ -151,6 +170,15 @@ export default function BudgetView() {
               onDeleteExpense={deleteExpense} 
               onOpenLogModal={() => setIsLogExpenseOpen(true)}
               tripBudget={trip.budget}
+            />
+          )}
+          {currentTab === 'Bookings' && (
+            <BookingsTab
+              bookings={bookings}
+              onDeleteBooking={deleteBooking}
+              onOpenAddModal={() => setIsAddBookingOpen(true)}
+              tripDates={{ start: trip.start_date, end: trip.end_date }}
+              isRealtimeConnected={isBookingsRealtime}
             />
           )}
           {currentTab === 'By Day' && (
@@ -184,6 +212,14 @@ export default function BudgetView() {
         isOpen={isLogExpenseOpen}
         onClose={() => setIsLogExpenseOpen(false)}
         onSave={handleRecordExpense}
+        tripDates={{ start: trip.start_date, end: trip.end_date }}
+      />
+
+      {/* Modal to add booking (FR-17) */}
+      <AddBookingModal
+        isOpen={isAddBookingOpen}
+        onClose={() => setIsAddBookingOpen(false)}
+        onSave={addBooking}
         tripDates={{ start: trip.start_date, end: trip.end_date }}
       />
     </div>

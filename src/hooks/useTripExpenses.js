@@ -58,9 +58,55 @@ export function useTripExpenses(tripId, tripBudget = 0) {
     }
   }, [tripId, loadFromStorage, saveToStorage]);
 
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+
   useEffect(() => {
     fetchExpenses();
-  }, [fetchExpenses]);
+
+    if (!tripId) return;
+
+    // Realtime subscription via Supabase Channel (FR-14, FR-15)
+    const channel = supabase
+      .channel(`rt:trip_expenses:${tripId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'trip_expenses',
+          filter: `trip_id=eq.${tripId}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            setExpenses((prev) => {
+              if (prev.some((e) => e.id === payload.new.id)) return prev;
+              const next = [payload.new, ...prev];
+              saveToStorage(next);
+              return next;
+            });
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            setExpenses((prev) => {
+              const next = prev.map((e) => (e.id === payload.new.id ? payload.new : e));
+              saveToStorage(next);
+              return next;
+            });
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            setExpenses((prev) => {
+              const next = prev.filter((e) => e.id !== payload.old.id);
+              saveToStorage(next);
+              return next;
+            });
+          }
+        }
+      )
+      .subscribe((status) => {
+        setIsRealtimeConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tripId, fetchExpenses, saveToStorage]);
 
   // Add expense (FR-14)
   const addExpense = async ({ amount, category, date, description, userId }) => {
@@ -165,6 +211,7 @@ export function useTripExpenses(tripId, tripBudget = 0) {
     loading,
     error,
     isDbSynced,
+    isRealtimeConnected,
     totalActualExpenses,
     expensesByCategory,
     remainingBalance,

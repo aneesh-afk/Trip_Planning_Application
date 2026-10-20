@@ -14,60 +14,88 @@ export function useTrips() {
       setLoading(true);
       setError(null);
 
-      let query = supabase
-        .from('trips')
-        .select(`
+      const tripFields = `
+        id,
+        user_id,
+        name,
+        description,
+        start_date,
+        end_date,
+        cover_photo_url,
+        is_public,
+        public_slug,
+        created_at,
+        trip_stops (
           id,
-          user_id,
-          name,
-          description,
+          city_id,
+          order_index,
           start_date,
           end_date,
-          cover_photo_url,
-          is_public,
-          public_slug,
-          created_at,
-          trip_stops (
+          stay_cost_per_night,
+          transport_cost_to_here,
+          city:cities (
             id,
-            city_id,
-            order_index,
-            start_date,
-            end_date,
-            stay_cost_per_night,
-            transport_cost_to_here,
-            city:cities (
+            name,
+            country,
+            image_url
+          ),
+          stop_activities (
+            id,
+            scheduled_date,
+            custom_cost_override,
+            activity:activities (
               id,
               name,
-              country,
-              image_url
-            ),
-            stop_activities (
-              id,
-              scheduled_date,
-              custom_cost_override,
-              activity:activities (
-                id,
-                name,
-                estimated_cost,
-                category
-              )
+              estimated_cost,
+              category
             )
           )
-        `)
+        )
+      `;
+
+      // 1. Fetch trips owned by the user
+      const { data: ownedData, error: fetchErr } = await supabase
+        .from('trips')
+        .select(tripFields)
+        .eq('user_id', user.id)
         .order('start_date', { ascending: false });
 
-      if (user?.id) {
-        query = query.eq('user_id', user.id);
+      // 2. Fetch trips where user is an invited member (FR-22)
+      let sharedData = [];
+      try {
+        const { data: memberRows } = await supabase
+          .from('trip_members')
+          .select('trip_id')
+          .eq('user_id', user.id);
+
+        if (memberRows && memberRows.length > 0) {
+          const memberTripIds = memberRows
+            .map((m) => m.trip_id)
+            .filter((id) => !ownedData?.some((t) => t.id === id));
+
+          if (memberTripIds.length > 0) {
+            const { data: memberTrips } = await supabase
+              .from('trips')
+              .select(tripFields)
+              .in('id', memberTripIds);
+
+            if (memberTrips) {
+              sharedData = memberTrips.map((t) => ({ ...t, isSharedWithMe: true }));
+            }
+          }
+        }
+      } catch (err) {
+        // Fallback gracefully if trip_members table not yet created
       }
 
-      const { data, error: fetchErr } = await query;
+      const allTrips = [...(ownedData || []), ...sharedData];
 
-      if (fetchErr) {
+      if (fetchErr && !allTrips.length) {
         console.warn('Supabase trips fetch error:', fetchErr.message);
         setError(fetchErr.message);
         setTrips([]);
       } else {
-        const enriched = (data || []).map((trip) => {
+        const enriched = (allTrips || []).map((trip) => {
           const today = new Date().toISOString().split('T')[0];
           const start = trip.start_date || today;
           const end = trip.end_date || start;
@@ -207,7 +235,23 @@ export function useTrips() {
 
   useEffect(() => {
     fetchTrips();
-  }, [fetchTrips]);
+
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`rt:user_trips:${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, () => {
+        fetchTrips();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_members', filter: `user_id=eq.${user.id}` }, () => {
+        fetchTrips();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchTrips]);
 
   return { trips, loading, error, refetch: fetchTrips, deleteTrip, completeTrip, optimisticComplete };
 }

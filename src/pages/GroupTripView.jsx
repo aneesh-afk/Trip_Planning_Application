@@ -38,6 +38,7 @@ export default function GroupTripView() {
     removeMember,
     addSharedExpense,
     deleteSharedExpense,
+    isRealtimeConnected,
   } = useGroupTrip(tripId);
 
   const [activeTab, setActiveTab] = useState('balances'); // 'balances' | 'expenses' | 'members'
@@ -96,6 +97,14 @@ export default function GroupTripView() {
                 </h1>
                 <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-route/10 text-route border border-route/20">
                   <Users size={12} /> Group Trip
+                </span>
+                <span className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-['IBM_Plex_Mono'] font-medium border ${
+                  isRealtimeConnected 
+                    ? 'bg-success/10 text-success border-success/30' 
+                    : 'bg-bg text-muted border-border'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isRealtimeConnected ? 'bg-success animate-pulse' : 'bg-route'}`} />
+                  {isRealtimeConnected ? 'Realtime Live' : 'Supabase Synced'}
                 </span>
               </div>
               <p className="font-['IBM_Plex_Mono'] text-xs text-muted">

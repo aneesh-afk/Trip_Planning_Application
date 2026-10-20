@@ -377,12 +377,18 @@ export default function ItineraryView() {
             <h2 className="font-['Fraunces'] text-[18px] font-semibold text-ink">
               Trip Planner
             </h2>
-            <div className="flex gap-[12px]">
+            <div className="flex gap-[10px] flex-wrap sm:flex-nowrap">
               <Link
                 to={`/trips/${tripId}/budget`}
                 className="text-[13px] font-medium px-[12px] py-[8px] border border-border rounded-[8px] hover:border-horizon transition-colors"
               >
-                Budget Breakdown
+                💰 Budget
+              </Link>
+              <Link
+                to={`/trips/${tripId}/budget?tab=Bookings`}
+                className="text-[13px] font-medium px-[12px] py-[8px] border border-border rounded-[8px] hover:border-horizon transition-colors flex items-center gap-1.5"
+              >
+                🏨 Bookings
               </Link>
               <Link
                 to={`/trips/${tripId}/group`}

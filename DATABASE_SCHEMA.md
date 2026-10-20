@@ -173,15 +173,44 @@ This means Screen 9 (Budget) is really just a smart SQL query / view, not new ta
 
 ---
 
-## What's deliberately NOT in this schema (v1)
+---
 
-- No separate `budgets` table (computed, see above)
-- No multi-currency support
-- No friends/followers/collaborative editing tables (Screen 11 sharing is read-only via slug, not real-time collaboration)
-- No admin/analytics tables (Screen 13 is optional/cut)
-- No activity reviews/ratings (not in the problem statement's core flows)
+## Module Additions (SRS Version 1.0)
 
-If there's time left after core flows work, these are the first candidates to add — but don't start the 8-hour clock designing for them.
+### Table: `trip_expenses` (Module 4.4: Actual Expense Tracking)
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, PK | `gen_random_uuid()` |
+| `trip_id` | uuid, FK → `trips.id` | Cascading delete |
+| `user_id` | uuid, FK → `users.id` | Set null on delete |
+| `amount` | numeric(10,2), not null | Actual expense logged |
+| `category` | text, default 'other' | 'food', 'transport', 'stay', 'sightseeing', 'shopping', 'other' |
+| `date` | date, not null | Expense date |
+| `description` | text, nullable | Optional notes/memo |
+| `created_at` | timestamptz, default now() | |
+
+### Table: `bookings` (Module 4.5: Accommodation & Transportation Booking)
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, PK | `gen_random_uuid()` |
+| `trip_id` | uuid, FK → `trips.id` | Cascading delete |
+| `user_id` | uuid, FK → `users.id` | Optional purchaser |
+| `type` | text, not null | 'accommodation' or 'transportation' |
+| `provider_name` | text, not null | e.g. "Hyatt", "Emirates" |
+| `booking_reference` | text, nullable | Confirmation code / PNR |
+| `start_date` | date, not null | Check-in or departure date |
+| `end_date` | date, not null | Check-out or arrival date |
+| `cost` | numeric(10,2), default 0 | Total booking price |
+| `notes` | text, nullable | Reservation notes |
+| `created_at` | timestamptz, default now() | |
+
+### Tables: `trip_members`, `shared_expenses`, `shared_expense_splits` (Module 4.6: Group Trips)
+- `trip_members`: Links invited registered users to a trip with roles ('organizer', 'member') and statuses.
+- `shared_expenses`: Tracks group payments, the payer (`payer_id`), and split methodology ('equal' or 'custom').
+- `shared_expense_splits`: Granular per-member share allocations used by the debt settlement algorithm to compute `who owes whom`.
+
+### Supabase Realtime Setup
+All module tables are added to `supabase_realtime` publication in `MODULES_SCHEMA.sql` to emit WebSocket events on INSERT, UPDATE, and DELETE.
 
 ---
 

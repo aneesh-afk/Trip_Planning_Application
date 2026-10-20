@@ -133,9 +133,59 @@ export function useGroupTrip(tripId) {
     }
   }, [tripId, loadFromStorage, saveToStorage]);
 
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+
   useEffect(() => {
     fetchGroupData();
-  }, [fetchGroupData]);
+
+    if (!tripId) return;
+
+    // Supabase Realtime Subscription for Live Group Collaboration (FR-21 to FR-24)
+    const channel = supabase
+      .channel(`rt:group_trip:${tripId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'trip_members',
+          filter: `trip_id=eq.${tripId}`,
+        },
+        () => {
+          fetchGroupData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shared_expenses',
+          filter: `trip_id=eq.${tripId}`,
+        },
+        () => {
+          fetchGroupData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shared_expense_splits',
+        },
+        () => {
+          fetchGroupData();
+        }
+      )
+      .subscribe((status) => {
+        setIsRealtimeConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tripId, fetchGroupData]);
 
   // Invite Member (FR-21)
   const inviteMember = async (targetUser, role = 'member') => {
@@ -425,6 +475,7 @@ export function useGroupTrip(tripId) {
     loading,
     error,
     isDbSynced,
+    isRealtimeConnected,
     balanceSummary,
     inviteMember,
     removeMember,

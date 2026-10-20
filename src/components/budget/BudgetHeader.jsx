@@ -44,8 +44,8 @@ export default function BudgetHeader({ trip, currentTab, setCurrentTab }) {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center justify-center gap-[24px] sm:gap-[32px] pt-[12px] overflow-x-auto">
-          {['Overview', 'Actual Expenses', 'By Day', 'By Category'].map(tab => (
+        <div className="flex items-center justify-center gap-[20px] sm:gap-[28px] pt-[12px] overflow-x-auto">
+          {['Overview', 'Actual Expenses', 'Bookings', 'By Day', 'By Category'].map(tab => (
             <button
               key={tab}
               onClick={() => setCurrentTab(tab)}
@@ -55,7 +55,7 @@ export default function BudgetHeader({ trip, currentTab, setCurrentTab }) {
                   : 'border-transparent text-muted hover:text-ink hover:border-border'
               }`}
             >
-              {tab}
+              {tab === 'Bookings' ? '🏨 Bookings' : tab}
             </button>
           ))}
         </div>
