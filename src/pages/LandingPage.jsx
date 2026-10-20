@@ -5,12 +5,12 @@ import { Link } from "react-router-dom";
    Waypoint data for the animated SVG route
 ───────────────────────────────────────────── */
 const WAYPOINTS = [
-  { cx: 60,  cy: 170, label: "35.7N 139.7E", city: "Tokyo"     },
-  { cx: 180, cy: 90,  label: "37.5N 126.9E", city: "Seoul"     },
-  { cx: 320, cy: 130, label: "25.0N 121.5E", city: "Taipei"    },
-  { cx: 460, cy: 80,  label: "22.3N 114.2E", city: "HK"        },
-  { cx: 600, cy: 150, label: "13.8N 100.5E", city: "Bangkok"   },
-  { cx: 740, cy: 110, label: "1.35N 103.8E", city: "Singapore" },
+  { cx: 60,  cy: 170, label: "28.6N 77.2E", city: "Delhi"     },
+  { cx: 180, cy: 90,  label: "26.9N 75.8E", city: "Jaipur"    },
+  { cx: 320, cy: 130, label: "19.0N 72.8E", city: "Mumbai"    },
+  { cx: 460, cy: 80,  label: "15.3N 74.1E", city: "Goa"       },
+  { cx: 600, cy: 150, label: "12.9N 77.6E", city: "Bengaluru" },
+  { cx: 740, cy: 110, label: "9.9N 76.3E",  city: "Kerala"    },
 ];
 
 /* Smooth cubic bezier path through waypoints */

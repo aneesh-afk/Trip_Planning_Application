@@ -141,7 +141,65 @@ export function useItinerary(tripId) {
     }
   };
 
-  return { trip, tripStops, activities, loading, error, refetch: fetchItinerary, updateActivityDetails, reorderActivity, addActivityToStop };
+  const addCustomActivityToStop = async (tripStopId, cityId, scheduledDate, { name, category, cost, time, duration, description }) => {
+    try {
+      if (!name || !name.trim()) {
+        throw new Error('Activity name is required');
+      }
+
+      // 1. Insert into activities master catalog
+      const { data: newAct, error: actErr } = await supabase
+        .from('activities')
+        .insert({
+          city_id: cityId,
+          name: name.trim(),
+          category: category || 'sightseeing',
+          estimated_cost: Number(cost) || 0,
+          duration_minutes: Number(duration) || 60,
+          description: description?.trim() || null,
+          image_url: `https://picsum.photos/seed/${encodeURIComponent(name.trim())}/400/300`,
+        })
+        .select()
+        .single();
+
+      if (actErr) throw actErr;
+
+      // 2. Attach to stop_activities
+      const stopActPayload = {
+        trip_stop_id: tripStopId,
+        activity_id: newAct.id,
+        scheduled_date: scheduledDate,
+        order_index: 0,
+        custom_cost_override: cost !== undefined && cost !== '' ? Number(cost) : null,
+        scheduled_time: time && time !== '' ? (time.length === 5 ? `${time}:00` : time) : null,
+      };
+
+      const { error: saErr } = await supabase
+        .from('stop_activities')
+        .insert(stopActPayload);
+
+      if (saErr) throw saErr;
+
+      await fetchItinerary();
+      return { success: true, activity: newAct };
+    } catch (err) {
+      console.error('Error adding custom activity:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  return { 
+    trip, 
+    tripStops, 
+    activities, 
+    loading, 
+    error, 
+    refetch: fetchItinerary, 
+    updateActivityDetails, 
+    reorderActivity, 
+    addActivityToStop,
+    addCustomActivityToStop
+  };
 }
 
 export function calculateGaps(dayActivities) {

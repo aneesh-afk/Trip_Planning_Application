@@ -136,7 +136,7 @@ export default function AddBookingModal({
             <input
               type="text"
               required
-              placeholder={type === 'accommodation' ? 'e.g. Kyoto Ryokan, Marriott, Airbnb' : 'e.g. Shinkansen Bullet Train, Air India, Uber'}
+              placeholder={type === 'accommodation' ? 'e.g. Taj Lake Palace, Zostel, Marriott, Airbnb' : 'e.g. Vande Bharat Express, IndiGo, Air India, Uber'}
               value={providerName}
               onChange={(e) => setProviderName(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-[14px] text-ink placeholder:text-muted focus:outline-none focus:border-route"

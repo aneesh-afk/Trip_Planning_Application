@@ -122,15 +122,13 @@ const CreateTrip = () => {
                   className="w-full bg-white border border-[#E4DDD0] rounded-lg px-4 py-3 text-sm text-[#1F2A24] focus:outline-none focus:border-[#2B5D6B] focus:ring-2 focus:ring-[#2B5D6B]/10 transition-all appearance-none cursor-pointer"
                 >
                   <option value="" disabled>
-                    Select a Region...
+                    Select an Indian Region or Destination...
                   </option>
-                  {[...new Set(cities.map((c) => c.region).filter(Boolean))]
-                    .sort()
-                    .map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
+                  <option value="All India">All India / Pan-India</option>
+                  <option value="North India">North India (Delhi, Agra, Jaipur, Manali, Ladakh, Amritsar)</option>
+                  <option value="West India">West India (Mumbai, Goa, Ahmedabad, Udaipur)</option>
+                  <option value="South India">South India (Bengaluru, Kerala Munnar & Alleppey)</option>
+                  <option value="East India">East India (Kolkata, Darjeeling, Varanasi)</option>
                 </select>
                 <ChevronDown
                   size={16}
@@ -152,7 +150,7 @@ const CreateTrip = () => {
                 name="name"
                 type="text"
                 required
-                placeholder="e.g. Japan Spring 2026"
+                placeholder="e.g. Rajasthan Heritage Tour, Goa Beach Escape, Ladakh Expedition"
                 value={formData.name}
                 onChange={handleChange}
                 className="w-full bg-white border border-[#E4DDD0] rounded-lg px-4 py-3 text-sm text-[#1F2A24] focus:outline-none focus:border-[#2B5D6B] focus:ring-2 focus:ring-[#2B5D6B]/10 transition-all placeholder-[#6B7268]"

@@ -93,17 +93,26 @@ export default function ItineraryBuilder() {
   const [actSearch, setActSearch] = useState("");
   const [actResults, setActResults] = useState([]);
 
+  // Custom activity state for builder
+  const [actModalTab, setActModalTab] = useState("catalog"); // "catalog" | "custom"
+  const [customActName, setCustomActName] = useState("");
+  const [customActCat, setCustomActCat] = useState("sightseeing");
+  const [customActCost, setCustomActCost] = useState("");
+  const [customActDuration, setCustomActDuration] = useState("60");
+  const [customActDesc, setCustomActDesc] = useState("");
+  const [actSubmitting, setActSubmitting] = useState(false);
+
   useEffect(() => {
     if (cityModalOpen) {
       let query = supabase
         .from("cities")
         .select("*")
         .ilike("name", `%${citySearch}%`)
-        .limit(12);
-      if (trip?.region) query = query.eq("region", trip.region);
+        .order("popularity_score", { ascending: false })
+        .limit(20);
       query.then(({ data }) => setCityResults(data || []));
     }
-  }, [citySearch, cityModalOpen, trip?.region]);
+  }, [citySearch, cityModalOpen]);
 
   useEffect(() => {
     if (actModalOpen && activeStopIdForAct) {
@@ -114,7 +123,7 @@ export default function ItineraryBuilder() {
           .select("*")
           .eq("city_id", stop.city.id)
           .ilike("name", `%${actSearch}%`)
-          .limit(15)
+          .limit(25)
           .then(({ data }) => setActResults(data || []));
       }
     }
@@ -138,6 +147,39 @@ export default function ItineraryBuilder() {
     refetch();
   }
 
+  async function addCustomCity(cityName) {
+    if (!cityName?.trim()) return;
+    const cleanName = cityName.trim();
+    const { data: existing } = await supabase
+      .from("cities")
+      .select("*")
+      .ilike("name", cleanName)
+      .maybeSingle();
+
+    let targetCity = existing;
+    if (!targetCity) {
+      const { data: newCity, error } = await supabase
+        .from("cities")
+        .insert({
+          name: cleanName,
+          country: "India",
+          region: trip?.region && trip.region !== "All India" ? trip.region : "North India",
+          cost_index: 2,
+          popularity_score: 90,
+          image_url: getCityPhoto(cleanName),
+        })
+        .select()
+        .single();
+      if (error) {
+        console.error("Error creating city:", error);
+        return;
+      }
+      targetCity = newCity;
+    }
+
+    await addStop(targetCity);
+  }
+
   async function addActivity(activity) {
     const stop = stops.find((s) => s.id === activeStopIdForAct);
     await supabase.from("stop_activities").insert({
@@ -148,7 +190,54 @@ export default function ItineraryBuilder() {
     });
     setActModalOpen(false);
     setActiveStopIdForAct(null);
+    setActSearch("");
     refetch();
+  }
+
+  async function handleAddCustomActivitySubmit(e) {
+    e.preventDefault();
+    if (!customActName.trim() || !activeStopIdForAct) return;
+    const stop = stops.find((s) => s.id === activeStopIdForAct);
+    if (!stop?.city?.id) return;
+
+    setActSubmitting(true);
+    try {
+      const { data: newAct, error: actErr } = await supabase
+        .from("activities")
+        .insert({
+          city_id: stop.city.id,
+          name: customActName.trim(),
+          category: customActCat || "sightseeing",
+          estimated_cost: Number(customActCost) || 0,
+          duration_minutes: Number(customActDuration) || 60,
+          description: customActDesc.trim() || null,
+          image_url: getActivityPhoto(customActName.trim()),
+        })
+        .select()
+        .single();
+
+      if (actErr) throw actErr;
+
+      await supabase.from("stop_activities").insert({
+        trip_stop_id: stop.id,
+        activity_id: newAct.id,
+        scheduled_date: stop.start_date,
+        order_index: stop.activities?.length ?? 0,
+        custom_cost_override: customActCost ? Number(customActCost) : null,
+      });
+
+      setActModalOpen(false);
+      setActiveStopIdForAct(null);
+      setActSearch("");
+      setCustomActName("");
+      setCustomActCost("");
+      setCustomActDesc("");
+      refetch();
+    } catch (err) {
+      console.error("Error adding custom activity in builder:", err);
+    } finally {
+      setActSubmitting(false);
+    }
   }
 
   async function deleteStop(stopId) {
@@ -530,47 +619,69 @@ export default function ItineraryBuilder() {
       <SimpleModal
         open={cityModalOpen}
         onClose={() => setCityModalOpen(false)}
-        title={`Add a City Stop ${trip?.region ? `· ${trip.region}` : ""}`}
+        title="Add a Destination / City Stop"
       >
-        <input
-          type="text"
-          placeholder="Search cities…"
-          value={citySearch}
-          onChange={(e) => setCitySearch(e.target.value)}
-          className="w-full border border-[#E4DDD0] rounded-xl px-4 py-3 text-sm text-[#1F2A24] focus:outline-none focus:border-[#C4622D] mb-4"
-          autoFocus
-        />
-        <div className="grid grid-cols-2 gap-3">
-          {cityResults.map((city) => (
+        <div className="flex flex-col gap-3">
+          <input
+            type="text"
+            placeholder="Search Indian destinations or type a custom place..."
+            value={citySearch}
+            onChange={(e) => setCitySearch(e.target.value)}
+            className="w-full border border-[#E4DDD0] rounded-xl px-4 py-3 text-sm text-[#1F2A24] focus:outline-none focus:border-[#C4622D]"
+            autoFocus
+          />
+
+          {/* Quick add custom place prompt */}
+          {citySearch.trim() && (
             <button
-              key={city.id}
-              onClick={() => addStop(city)}
-              className="group relative rounded-xl overflow-hidden border border-[#E4DDD0] hover:border-[#C4622D] hover:shadow-md transition-all text-left"
+              onClick={() => addCustomCity(citySearch.trim())}
+              className="p-3 border border-dashed border-[#C4622D] bg-[#FEF5F0] rounded-xl text-left hover:bg-[#FDECE2] transition-colors flex items-center justify-between"
             >
-              <div className="h-28 overflow-hidden bg-[#1F2A24]">
-                <img
-                  src={city.image_url || getCityPhoto(city.name)}
-                  alt={city.name}
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = getCityPhoto(city.name);
-                  }}
-                />
+              <div className="text-sm text-[#1F2A24]">
+                <span className="font-bold text-[#C4622D]">+ Add custom destination:</span>{" "}
+                <span className="font-semibold">"{citySearch.trim()}"</span>
               </div>
-              <div className="p-2 bg-white">
-                <p className="font-bold text-[#1F2A24] text-sm truncate">
-                  {city.name}
-                </p>
-                <p className="text-[#6B7268] text-[11px]">{city.country}</p>
-              </div>
+              <span className="text-xs bg-[#C4622D] text-white px-2.5 py-1 rounded-lg font-semibold">
+                Add Stop
+              </span>
             </button>
-          ))}
-          {cityResults.length === 0 && (
-            <p className="col-span-2 text-center text-sm text-[#6B7268] py-6">
-              No cities found.
-            </p>
           )}
+
+          <div className="grid grid-cols-2 gap-3 mt-1">
+            {cityResults.map((city) => (
+              <button
+                key={city.id}
+                onClick={() => addStop(city)}
+                className="group relative rounded-xl overflow-hidden border border-[#E4DDD0] hover:border-[#C4622D] hover:shadow-md transition-all text-left"
+              >
+                <div className="h-28 overflow-hidden bg-[#1F2A24]">
+                  <img
+                    src={city.image_url || getCityPhoto(city.name)}
+                    alt={city.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = getCityPhoto(city.name);
+                    }}
+                  />
+                </div>
+                <div className="p-2.5 bg-white">
+                  <p className="font-bold text-[#1F2A24] text-sm truncate">
+                    {city.name}
+                  </p>
+                  <p className="text-[#6B7268] text-[11px] flex items-center justify-between">
+                    <span>{city.region || city.country}</span>
+                    <span className="text-[#C4622D] font-semibold">Select →</span>
+                  </p>
+                </div>
+              </button>
+            ))}
+            {cityResults.length === 0 && !citySearch.trim() && (
+              <p className="col-span-2 text-center text-sm text-[#6B7268] py-6">
+                No destinations loaded. Type a city name above to add it.
+              </p>
+            )}
+          </div>
         </div>
       </SimpleModal>
 
@@ -581,61 +692,216 @@ export default function ItineraryBuilder() {
           setActModalOpen(false);
           setActiveStopIdForAct(null);
           setActSearch("");
+          setActModalTab("catalog");
         }}
-        title="Select an Activity"
+        title="Add Activity to Stop"
       >
-        <input
-          type="text"
-          placeholder="Search activities…"
-          value={actSearch}
-          onChange={(e) => setActSearch(e.target.value)}
-          className="w-full border border-[#E4DDD0] rounded-xl px-4 py-3 text-sm text-[#1F2A24] focus:outline-none focus:border-[#C4622D] mb-4"
-          autoFocus
-        />
-        <div className="flex flex-col gap-3">
-          {actResults.map((act) => (
+        <div className="flex flex-col gap-4">
+          {/* Tab Selector */}
+          <div className="flex border-b border-[#E4DDD0] gap-4">
             <button
-              key={act.id}
-              onClick={() => addActivity(act)}
-              className="group flex items-center gap-3 p-3 border border-[#E4DDD0] hover:border-[#C4622D] rounded-xl text-left bg-white hover:bg-[#FEF5F0] transition-all"
+              onClick={() => setActModalTab("catalog")}
+              className={`pb-2.5 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
+                actModalTab === "catalog"
+                  ? "border-[#C4622D] text-[#C4622D]"
+                  : "border-transparent text-[#6B7268] hover:text-[#1F2A24]"
+              }`}
             >
-              {/* Activity thumbnail */}
-              <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-[#1F2A24]">
-                <img
-                  src={act.image_url || getActivityPhoto(act.name)}
-                  alt={act.name}
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = getActivityPhoto(act.name);
+              Browse Catalog ({actResults.length})
+            </button>
+            <button
+              onClick={() => setActModalTab("custom")}
+              className={`pb-2.5 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 flex items-center gap-1 ${
+                actModalTab === "custom"
+                  ? "border-[#C4622D] text-[#C4622D]"
+                  : "border-transparent text-[#6B7268] hover:text-[#1F2A24]"
+              }`}
+            >
+              <span>✨</span>
+              <span>+ Create Custom Activity</span>
+            </button>
+          </div>
+
+          {actModalTab === "catalog" ? (
+            <div className="flex flex-col gap-3">
+              <input
+                type="text"
+                placeholder="Search activities or type custom name…"
+                value={actSearch}
+                onChange={(e) => setActSearch(e.target.value)}
+                className="w-full border border-[#E4DDD0] rounded-xl px-4 py-2.5 text-sm text-[#1F2A24] focus:outline-none focus:border-[#C4622D]"
+                autoFocus
+              />
+
+              {/* Fast switch to custom if user typed something */}
+              {actSearch.trim() && (
+                <button
+                  onClick={() => {
+                    setCustomActName(actSearch.trim());
+                    setActModalTab("custom");
                   }}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-[#1F2A24] truncate">
-                  {act.name}
-                </p>
-                {act.category && (
-                  <span
-                    className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full mt-1 ${
-                      categoryColors[act.category?.toLowerCase()] ||
-                      "bg-gray-100 text-gray-600"
-                    }`}
+                  className="p-3 border border-dashed border-[#C4622D] bg-[#FEF5F0] rounded-xl text-left hover:bg-[#FDECE2] transition-colors flex items-center justify-between"
+                >
+                  <div className="text-xs text-[#1F2A24]">
+                    <span className="font-bold text-[#C4622D]">+ Create custom activity:</span>{" "}
+                    <span className="font-semibold">"{actSearch.trim()}"</span>
+                  </div>
+                  <span className="text-xs bg-[#C4622D] text-white px-2 py-0.5 rounded font-medium">Create</span>
+                </button>
+              )}
+
+              <div className="flex flex-col gap-2.5 max-h-[50vh] overflow-y-auto">
+                {actResults.map((act) => (
+                  <button
+                    key={act.id}
+                    onClick={() => addActivity(act)}
+                    className="group flex items-center gap-3 p-3 border border-[#E4DDD0] hover:border-[#C4622D] rounded-xl text-left bg-white hover:bg-[#FEF5F0] transition-all"
                   >
-                    <Tag size={9} />
-                    {act.category}
-                  </span>
+                    <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-[#1F2A24]">
+                      <img
+                        src={act.image_url || getActivityPhoto(act.name)}
+                        alt={act.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = getActivityPhoto(act.name);
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-[#1F2A24] truncate">
+                        {act.name}
+                      </p>
+                      {act.category && (
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full mt-1 ${
+                            categoryColors[act.category?.toLowerCase()] ||
+                            "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          <Tag size={9} />
+                          {act.category}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[#C4622D] font-bold text-sm flex-shrink-0">
+                      ₹{Number(act.estimated_cost).toLocaleString("en-IN")}
+                    </span>
+                  </button>
+                ))}
+                {actResults.length === 0 && !actSearch.trim() && (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-[#6B7268] mb-3">No preset activities found for this city.</p>
+                    <button
+                      onClick={() => setActModalTab("custom")}
+                      className="px-4 py-2 bg-[#C4622D] text-white rounded-xl text-xs font-semibold hover:bg-[#a35225]"
+                    >
+                      + Create Your Own Activity
+                    </button>
+                  </div>
                 )}
               </div>
-              <span className="text-[#C4622D] font-bold text-sm flex-shrink-0">
-                ₹{Number(act.estimated_cost).toLocaleString("en-IN")}
-              </span>
-            </button>
-          ))}
-          {actResults.length === 0 && (
-            <p className="text-center text-sm text-[#6B7268] py-6">
-              No activities found for this city.
-            </p>
+            </div>
+          ) : (
+            /* Custom Activity Creation Form */
+            <form onSubmit={handleAddCustomActivitySubmit} className="flex flex-col gap-3">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B7268] mb-1">
+                  Activity Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Scuba Diving, Food Walk, Temple Darshan, Sunset Point"
+                  value={customActName}
+                  onChange={(e) => setCustomActName(e.target.value)}
+                  className="w-full border border-[#E4DDD0] rounded-xl px-3.5 py-2.5 text-sm text-[#1F2A24] focus:outline-none focus:border-[#C4622D]"
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B7268] mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={customActCat}
+                    onChange={(e) => setCustomActCat(e.target.value)}
+                    className="w-full border border-[#E4DDD0] rounded-xl px-3 py-2 text-xs text-[#1F2A24] focus:outline-none focus:border-[#C4622D]"
+                  >
+                    <option value="sightseeing">📸 Sightseeing</option>
+                    <option value="food">🍽️ Food & Dining</option>
+                    <option value="adventure">🧗 Adventure & Trekking</option>
+                    <option value="culture">🛕 Culture & Spiritual</option>
+                    <option value="nature">🌿 Nature & Wildlife</option>
+                    <option value="shopping">🛍️ Shopping & Bazaars</option>
+                    <option value="wellness">🧘 Wellness & Retreat</option>
+                    <option value="other">📍 Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B7268] mb-1">
+                    Estimated Cost (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    value={customActCost}
+                    onChange={(e) => setCustomActCost(e.target.value)}
+                    className="w-full border border-[#E4DDD0] rounded-xl px-3 py-2 text-xs text-[#1F2A24] font-mono focus:outline-none focus:border-[#C4622D]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B7268] mb-1">
+                  Duration (Minutes)
+                </label>
+                <input
+                  type="number"
+                  min="15"
+                  step="15"
+                  placeholder="60"
+                  value={customActDuration}
+                  onChange={(e) => setCustomActDuration(e.target.value)}
+                  className="w-full border border-[#E4DDD0] rounded-xl px-3 py-2 text-xs text-[#1F2A24] font-mono focus:outline-none focus:border-[#C4622D]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B7268] mb-1">
+                  Notes / Description (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Bring camera, best during sunrise..."
+                  value={customActDesc}
+                  onChange={(e) => setCustomActDesc(e.target.value)}
+                  className="w-full border border-[#E4DDD0] rounded-xl px-3 py-2 text-xs text-[#1F2A24] focus:outline-none focus:border-[#C4622D] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#E4DDD0] mt-1">
+                <button
+                  type="button"
+                  onClick={() => setActModalTab("catalog")}
+                  className="px-4 py-2 text-xs font-semibold text-[#6B7268] hover:text-[#1F2A24]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actSubmitting || !customActName.trim()}
+                  className="px-5 py-2.5 bg-[#C4622D] text-white rounded-xl text-xs font-bold hover:bg-[#a35225] transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {actSubmitting ? "Adding..." : "+ Add to Itinerary"}
+                </button>
+              </div>
+            </form>
           )}
         </div>
       </SimpleModal>

@@ -119,9 +119,20 @@ function ActivityDetailModal({ activity, onClose, onSave }) {
   );
 }
 
-function AddActivityModal({ stop, onClose, onAdd }) {
+function AddActivityModal({ stop, dayDateStr, onClose, onAdd, onAddCustom }) {
+  const [activeTab, setActiveTab] = useState("catalog"); // "catalog" | "custom"
   const [availableActivities, setAvailableActivities] = useState([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Custom activity form state
+  const [customName, setCustomName] = useState("");
+  const [customCategory, setCustomCategory] = useState("sightseeing");
+  const [customCost, setCustomCost] = useState("");
+  const [customTime, setCustomTime] = useState("");
+  const [customDuration, setCustomDuration] = useState("60");
+  const [customDesc, setCustomDesc] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     async function fetchActivities() {
@@ -135,13 +146,44 @@ function AddActivityModal({ stop, onClose, onAdd }) {
     fetchActivities();
   }, [stop.city_id]);
 
+  const filtered = useMemo(() => {
+    if (!search.trim()) return availableActivities;
+    const q = search.toLowerCase();
+    return availableActivities.filter(
+      (a) =>
+        a.name.toLowerCase().includes(q) ||
+        a.category.toLowerCase().includes(q)
+    );
+  }, [availableActivities, search]);
+
+  const handleCustomSubmit = async (e) => {
+    e.preventDefault();
+    if (!customName.trim()) return;
+    setSubmitting(true);
+    await onAddCustom({
+      name: customName.trim(),
+      category: customCategory,
+      cost: customCost ? Number(customCost) : 0,
+      time: customTime || null,
+      duration: customDuration ? Number(customDuration) : 60,
+      description: customDesc.trim() || null,
+    });
+    setSubmitting(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-50 flex items-center justify-center animate-[fadeIn_0.2s_ease-out_forwards] p-[16px]">
-      <div className="bg-surface border border-border rounded-[16px] w-full max-w-[500px] flex flex-col max-h-[80vh] shadow-2xl overflow-hidden">
+      <div className="bg-surface border border-border rounded-[16px] w-full max-w-[540px] flex flex-col max-h-[85vh] shadow-2xl overflow-hidden">
+        {/* Header */}
         <div className="p-[20px] border-b border-border flex justify-between items-center bg-bg shrink-0">
-          <h3 className="font-['Fraunces'] font-semibold text-[20px] text-ink">
-            Add to {stop.city?.name}
-          </h3>
+          <div>
+            <h3 className="font-['Fraunces'] font-semibold text-[20px] text-ink">
+              Add Activity to {stop.city?.name || "Trip"}
+            </h3>
+            <p className="text-[12px] text-muted font-['IBM_Plex_Mono']">
+              {dayDateStr}
+            </p>
+          </div>
           <button
             onClick={onClose}
             className="w-[32px] h-[32px] rounded-full hover:bg-black/10 flex items-center justify-center"
@@ -157,54 +199,252 @@ function AddActivityModal({ stop, onClose, onAdd }) {
             </svg>
           </button>
         </div>
+
+        {/* Tab Toggle */}
+        <div className="flex border-b border-border bg-bg/50 px-4 pt-2 shrink-0">
+          <button
+            onClick={() => setActiveTab("catalog")}
+            className={`pb-2.5 px-4 text-[13px] font-semibold transition-colors border-b-2 ${
+              activeTab === "catalog"
+                ? "border-route text-route"
+                : "border-transparent text-muted hover:text-ink"
+            }`}
+          >
+            Browse City Activities ({availableActivities.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("custom")}
+            className={`pb-2.5 px-4 text-[13px] font-semibold transition-colors border-b-2 flex items-center gap-1.5 ${
+              activeTab === "custom"
+                ? "border-route text-route"
+                : "border-transparent text-muted hover:text-ink"
+            }`}
+          >
+            <span>✨</span>
+            <span>+ Add Custom Activity</span>
+          </button>
+        </div>
+
+        {/* Content */}
         <div className="flex-1 overflow-y-auto p-[20px]">
-          {loading ? (
-            <div className="text-center text-muted py-[20px]">
-              Loading activities...
-            </div>
-          ) : (
-            <div className="flex flex-col gap-[12px]">
-              {availableActivities.length === 0 && (
+          {activeTab === "catalog" ? (
+            <div>
+              {/* Search */}
+              <div className="mb-3">
+                <input
+                  type="text"
+                  placeholder="Search city activities or type custom name..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-bg border border-border rounded-[10px] px-3.5 py-2.5 text-[13.5px] text-ink placeholder:text-muted focus:outline-none focus:border-route"
+                />
+              </div>
+
+              {loading ? (
                 <div className="text-center text-muted py-[20px]">
-                  No activities found for this city.
+                  Loading activities...
+                </div>
+              ) : (
+                <div className="flex flex-col gap-[10px]">
+                  {/* Create custom prompt if user typed something */}
+                  {search.trim() && (
+                    <button
+                      onClick={() => {
+                        setCustomName(search.trim());
+                        setActiveTab("custom");
+                      }}
+                      className="p-3 border border-dashed border-route bg-route/5 rounded-[12px] text-left hover:bg-route/10 transition-colors flex items-center justify-between"
+                    >
+                      <div className="text-[13px] text-ink">
+                        <span className="font-semibold text-route">+ Create custom activity:</span>{" "}
+                        <span className="font-medium">"{search.trim()}"</span>
+                      </div>
+                      <span className="text-[12px] bg-route text-white px-2 py-0.5 rounded font-medium">Create</span>
+                    </button>
+                  )}
+
+                  {filtered.length === 0 && !search.trim() && (
+                    <div className="text-center text-muted py-[24px]">
+                      <p className="mb-3">No preset catalog activities found for this city.</p>
+                      <button
+                        onClick={() => setActiveTab("custom")}
+                        className="px-4 py-2 bg-route text-white rounded-xl text-[13px] font-semibold hover:bg-route/90"
+                      >
+                        + Create Your Own Activity
+                      </button>
+                    </div>
+                  )}
+
+                  {filtered.map((act) => (
+                    <div
+                      key={act.id}
+                      onClick={() => onAdd(act.id)}
+                      className="flex items-center gap-[12px] p-[12px] border border-border rounded-[12px] cursor-pointer hover:border-route transition-colors bg-bg group"
+                    >
+                      <div className="w-[48px] h-[48px] bg-surface rounded-[8px] overflow-hidden flex items-center justify-center border border-border shrink-0">
+                        {act.image_url ? (
+                          <img
+                            src={act.image_url}
+                            alt={act.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-[20px]">
+                            {act.category === "food"
+                              ? "🍔"
+                              : act.category === "sightseeing"
+                              ? "📸"
+                              : "📍"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-[14.5px] text-ink mb-[2px] truncate group-hover:text-route">
+                          {act.name}
+                        </div>
+                        <div className="text-[12px] text-muted capitalize flex items-center gap-2">
+                          <span>{act.category}</span>
+                          {act.duration_minutes && (
+                            <>
+                              <span>•</span>
+                              <span>{act.duration_minutes}m</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-['IBM_Plex_Mono'] font-bold text-[14px] text-route">
+                          ₹{Number(act.estimated_cost).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-              {availableActivities.map((act) => (
-                <div
-                  key={act.id}
-                  onClick={() => onAdd(act.id)}
-                  className="flex items-center gap-[12px] p-[12px] border border-border rounded-[12px] cursor-pointer hover:border-route transition-colors bg-bg"
-                >
-                  <div className="w-[48px] h-[48px] bg-surface rounded-[8px] overflow-hidden flex items-center justify-center border border-border shrink-0">
-                    {act.image_url ? (
-                      <img src={act.image_url} alt={act.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-[20px]">
-                        {act.category === "food" ? "🍔" : act.category === "sightseeing" ? "📸" : "📍"}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-[15px] text-ink mb-[2px]">
-                      {act.name}
-                    </div>
-                    <div className="text-[12px] text-muted capitalize">
-                      {act.category}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-['IBM_Plex_Mono'] font-medium text-[14px] text-route">
-                      ₹{act.estimated_cost}
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
+          ) : (
+            /* Custom Activity Form */
+            <form onSubmit={handleCustomSubmit} className="flex flex-col gap-4">
+              <div>
+                <label className="block text-[12px] font-semibold uppercase tracking-wider text-muted font-['IBM_Plex_Mono'] mb-1.5">
+                  Activity Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Sunset Boat Cruise, Street Food Crawl, Mountain Trek"
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-[14px] text-ink placeholder:text-muted focus:outline-none focus:border-route"
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold uppercase tracking-wider text-muted font-['IBM_Plex_Mono'] mb-1.5">
+                    Category
+                  </label>
+                  <select
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    className="w-full px-3 py-2 bg-bg border border-border rounded-xl text-[13px] text-ink focus:outline-none focus:border-route"
+                  >
+                    <option value="sightseeing">📸 Sightseeing</option>
+                    <option value="food">🍽️ Food & Dining</option>
+                    <option value="adventure">🧗 Adventure & Sports</option>
+                    <option value="culture">🛕 Culture & Heritage</option>
+                    <option value="shopping">🛍️ Shopping</option>
+                    <option value="nature">🌿 Nature & Wildlife</option>
+                    <option value="wellness">🧘 Wellness & Yoga</option>
+                    <option value="other">📍 Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[12px] font-semibold uppercase tracking-wider text-muted font-['IBM_Plex_Mono'] mb-1.5">
+                    Estimated Cost (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    value={customCost}
+                    onChange={(e) => setCostOrEmpty(e.target.value, setCustomCost)}
+                    className="w-full px-3 py-2 bg-bg border border-border rounded-xl text-[13px] text-ink font-['IBM_Plex_Mono'] focus:outline-none focus:border-route"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold uppercase tracking-wider text-muted font-['IBM_Plex_Mono'] mb-1.5">
+                    Scheduled Time (Optional)
+                  </label>
+                  <input
+                    type="time"
+                    value={customTime}
+                    onChange={(e) => setCustomTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-bg border border-border rounded-xl text-[13px] text-ink font-['IBM_Plex_Mono'] focus:outline-none focus:border-route"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[12px] font-semibold uppercase tracking-wider text-muted font-['IBM_Plex_Mono'] mb-1.5">
+                    Duration (Minutes)
+                  </label>
+                  <input
+                    type="number"
+                    min="15"
+                    step="15"
+                    placeholder="60"
+                    value={customDuration}
+                    onChange={(e) => setCustomDuration(e.target.value)}
+                    className="w-full px-3 py-2 bg-bg border border-border rounded-xl text-[13px] text-ink font-['IBM_Plex_Mono'] focus:outline-none focus:border-route"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold uppercase tracking-wider text-muted font-['IBM_Plex_Mono'] mb-1.5">
+                  Notes / Description (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Reach 15 mins early for tickets, dress appropriately..."
+                  value={customDesc}
+                  onChange={(e) => setCustomDesc(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-bg border border-border rounded-xl text-[13px] text-ink placeholder:text-muted focus:outline-none focus:border-route resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-border mt-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("catalog")}
+                  className="px-4 py-2 text-[13px] font-medium text-muted hover:text-ink transition-colors"
+                >
+                  Back to Catalog
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !customName.trim()}
+                  className="px-5 py-2.5 bg-route text-white rounded-xl text-[13px] font-semibold hover:bg-route/90 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {submitting ? "Adding..." : "+ Add Custom Activity"}
+                </button>
+              </div>
+            </form>
           )}
         </div>
       </div>
     </div>
   );
+}
+
+function setCostOrEmpty(val, setter) {
+  setter(val);
 }
 
 export default function ItineraryView() {
@@ -218,6 +458,7 @@ export default function ItineraryView() {
     updateActivityDetails,
     reorderActivity,
     addActivityToStop,
+    addCustomActivityToStop,
   } = useItinerary(tripId);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -242,6 +483,18 @@ export default function ItineraryView() {
         addingToDay.stop.id,
         activityId,
         addingToDay.dayDateStr
+      );
+      setAddingToDay(null);
+    }
+  };
+
+  const handleAddCustomActivity = async (customData) => {
+    if (addingToDay) {
+      await addCustomActivityToStop(
+        addingToDay.stop.id,
+        addingToDay.stop.city_id,
+        addingToDay.dayDateStr,
+        customData
       );
       setAddingToDay(null);
     }
@@ -797,6 +1050,7 @@ export default function ItineraryView() {
           dayDateStr={addingToDay.dayDateStr}
           onClose={() => setAddingToDay(null)}
           onAdd={handleAddActivity}
+          onAddCustom={handleAddCustomActivity}
         />
       )}
     </div>

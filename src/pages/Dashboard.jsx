@@ -170,7 +170,7 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div className="font-mono font-bold text-ink text-sm">
-                        ${act.estimated_cost}
+                        ₹{act.estimated_cost}
                       </div>
                     </div>
                   );
