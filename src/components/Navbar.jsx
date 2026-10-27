@@ -27,6 +27,7 @@ export default function Navbar({ collapsed, onToggle }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = async () => {
+    localStorage.removeItem("gt_demo_session");
     await supabase.auth.signOut();
     navigate("/login", { replace: true });
   };

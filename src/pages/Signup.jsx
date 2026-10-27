@@ -38,7 +38,7 @@ export default function Signup() {
       if (authError) {
         if (authError.message.toLowerCase().includes("rate limit")) {
           setError(
-            "Supabase has temporarily limited signup emails. Wait a while before trying again, or disable email confirmation in Supabase for this demo."
+            "Supabase free-tier email limit reached. In your Supabase Dashboard: Go to Authentication > Providers > Email, turn OFF 'Confirm email', and click Save. Then try again."
           );
         } else {
           setError(authError.message);
@@ -46,13 +46,38 @@ export default function Signup() {
         return;
       }
 
-      if (data.session) {
+      // If email confirmation is turned OFF in Supabase, data.session is returned immediately
+      if (data?.session) {
+        localStorage.removeItem("gt_demo_session");
+        // Ensure user row exists in public.users
+        try {
+          await supabase.from("users").upsert({
+            id: data.user.id,
+            email: data.user.email,
+            display_name: displayName,
+          });
+        } catch (uErr) {
+          console.warn("Could not upsert public.users:", uErr);
+        }
         navigate("/dashboard");
-      } else {
-        setSuccess("Account created. Check your email to confirm your account.");
+        return;
       }
-    } catch {
-      setError("Unable to create your account right now. Please try again.");
+
+      // If user was created in auth.users but requires email confirmation
+      if (data?.user) {
+        try {
+          await supabase.from("users").upsert({
+            id: data.user.id,
+            email: data.user.email,
+            display_name: displayName,
+          });
+        } catch {}
+        setSuccess(
+          "Account created in Supabase! If 'Confirm email' is ON in Supabase, check your inbox, or turn OFF 'Confirm email' in Supabase to log in without email verification."
+        );
+      }
+    } catch (err) {
+      setError(err.message || "Unable to create your account right now. Please try again.");
     } finally {
       setLoading(false);
     }

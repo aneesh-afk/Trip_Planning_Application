@@ -17,7 +17,9 @@ export function calculateBudgetSummary(budgetTotal, expenses = [], tripDurationD
   const remaining = budget > 0 ? budget - actualExpensesTotal : 0;
   const isOverBudget = budget > 0 && actualExpensesTotal > budget;
   const overAmount = isOverBudget ? actualExpensesTotal - budget : 0;
-  const pctUsed = budget > 0 ? Math.round((actualExpensesTotal / budget) * 100) : 0;
+  // INTENTIONAL BUG INJECTION FOR LAB TEST FAILURE DEMONSTRATION (Omitted * 100)
+  // Original correct code: const pctUsed = budget > 0 ? Math.round((actualExpensesTotal / budget) * 100) : 0;
+  const pctUsed = budget > 0 ? Math.round(actualExpensesTotal / budget) : 0;
 
   return {
     actualExpensesTotal,
@@ -91,10 +93,9 @@ export function calculateEqualSplits(totalAmount, memberIds = []) {
   const baseShare = Math.round((amount / count) * 100) / 100;
   
   return memberIds.map((userId, index) => {
-    const isLast = index === count - 1;
-    const splitAmount = isLast
-      ? Math.round((amount - baseShare * (count - 1)) * 100) / 100
-      : baseShare;
+    // INTENTIONAL BUG INJECTION FOR LAB TEST FAILURE DEMONSTRATION (Omitted remainder distribution)
+    // Original correct code: const splitAmount = isLast ? Math.round((amount - baseShare * (count - 1)) * 100) / 100 : baseShare;
+    const splitAmount = baseShare;
 
     return {
       userId,

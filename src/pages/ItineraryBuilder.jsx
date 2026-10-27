@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   Plus,
@@ -44,9 +44,70 @@ function SimpleModal({ open, onClose, title, children }) {
   );
 }
 
+function FastNumberInput({
+  stopId,
+  field,
+  value,
+  onSave,
+  className,
+  placeholder = "0",
+}) {
+  const [localVal, setLocalVal] = useState(
+    value === 0 || value === "0" ? "0" : value != null && value !== "" ? String(value) : ""
+  );
+  const debounceTimer = useRef(null);
+  const isFocused = useRef(false);
+
+  useEffect(() => {
+    if (!isFocused.current) {
+      setLocalVal(
+        value === 0 || value === "0" ? "0" : value != null && value !== "" ? String(value) : ""
+      );
+    }
+  }, [value]);
+
+  const handleChange = (e) => {
+    const next = e.target.value;
+    setLocalVal(next); // Instant synchronous response - zero lag
+
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      const num = next === "" ? 0 : Number(next);
+      onSave(stopId, field, isNaN(num) ? 0 : num);
+    }, 400);
+  };
+
+  const handleBlur = () => {
+    isFocused.current = false;
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    const num = localVal === "" ? 0 : Number(localVal);
+    onSave(stopId, field, isNaN(num) ? 0 : num);
+  };
+
+  const handleFocus = (e) => {
+    isFocused.current = true;
+    if (e.target.value === "0") {
+      e.target.select();
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      min="0"
+      value={localVal}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
+
 export default function ItineraryBuilder() {
   const { tripId } = useParams();
-  const { trip, stops, loading, refetch } = useTrip(tripId);
+  const { trip, stops, loading, refetch, updateStopField } = useTrip(tripId);
 
   const orderedStops = useMemo(
     () => [...stops].sort((a, b) => a.order_index - b.order_index),
@@ -252,13 +313,6 @@ export default function ItineraryBuilder() {
     refetch();
   }
 
-  async function updateStopField(stopId, field, value) {
-    await supabase
-      .from("trip_stops")
-      .update({ [field]: value })
-      .eq("id", stopId);
-    refetch();
-  }
 
   const toggleExpand = (stopId) => {
     setExpandedStops((prev) => ({ ...prev, [stopId]: !prev[stopId] }));
@@ -467,16 +521,11 @@ export default function ItineraryBuilder() {
                           <span className="text-xs text-[#6B7268] w-24 flex-shrink-0">
                             Stay / night
                           </span>
-                          <input
-                            type="number"
-                            value={stop.stay_cost_per_night || 0}
-                            onChange={(e) =>
-                              updateStopField(
-                                stop.id,
-                                "stay_cost_per_night",
-                                e.target.value
-                              )
-                            }
+                          <FastNumberInput
+                            stopId={stop.id}
+                            field="stay_cost_per_night"
+                            value={stop.stay_cost_per_night}
+                            onSave={updateStopField}
                             className="flex-1 bg-white border border-[#E4DDD0] rounded-lg px-3 py-2 text-sm text-[#1F2A24] focus:outline-none focus:border-[#C4622D]"
                           />
                         </div>
@@ -484,16 +533,11 @@ export default function ItineraryBuilder() {
                           <span className="text-xs text-[#6B7268] w-24 flex-shrink-0">
                             Transport
                           </span>
-                          <input
-                            type="number"
-                            value={stop.transport_cost_to_here || 0}
-                            onChange={(e) =>
-                              updateStopField(
-                                stop.id,
-                                "transport_cost_to_here",
-                                e.target.value
-                              )
-                            }
+                          <FastNumberInput
+                            stopId={stop.id}
+                            field="transport_cost_to_here"
+                            value={stop.transport_cost_to_here}
+                            onSave={updateStopField}
                             className="flex-1 bg-white border border-[#E4DDD0] rounded-lg px-3 py-2 text-sm text-[#1F2A24] focus:outline-none focus:border-[#C4622D]"
                           />
                         </div>

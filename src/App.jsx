@@ -112,6 +112,14 @@ export default function App() {
           element={<Protected>{appShell(<CreateTrip />)}</Protected>}
         />
         <Route
+          path="/trips/:tripId"
+          element={<Protected>{appShell(<ItineraryView />)}</Protected>}
+        />
+        <Route
+          path="/trips/:tripId/edit"
+          element={<Protected>{appShell(<ItineraryBuilder />)}</Protected>}
+        />
+        <Route
           path="/trips/:tripId/build"
           element={<Protected>{appShell(<ItineraryBuilder />)}</Protected>}
         />

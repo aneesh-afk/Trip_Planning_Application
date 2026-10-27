@@ -223,7 +223,7 @@ const Dashboard = () => {
                 {trips.map((trip) => (
                   <Link
                     key={trip.id}
-                    to={`/trips/${trip.id}`}
+                    to={`/trips/${trip.id}/view`}
                     className="group bg-surface rounded-md shadow-card border border-border overflow-hidden transition-all hover:shadow-[0_4px_12px_rgba(31,42,36,0.12)] flex flex-col"
                   >
                     <div className="h-40 bg-horizon flex items-center justify-center relative overflow-hidden">

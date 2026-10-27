@@ -74,9 +74,29 @@ export function useTrip(tripId) {
     }
   }, [tripId]);
 
+  // Optimistic update for stop fields (budget, dates) without full refetch lag
+  const updateStopField = useCallback(async (stopId, field, value) => {
+    setStops((prev) =>
+      prev.map((s) => (s.id === stopId ? { ...s, [field]: value } : s))
+    );
+
+    try {
+      const { error: updErr } = await supabase
+        .from('trip_stops')
+        .update({ [field]: value })
+        .eq('id', stopId);
+
+      if (updErr) {
+        console.warn('Failed to persist stop update to Supabase:', updErr);
+      }
+    } catch (err) {
+      console.warn('Network error updating stop:', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchTripData();
   }, [fetchTripData]);
 
-  return { trip, stops, loading, error, refetch: fetchTripData };
+  return { trip, stops, loading, error, refetch: fetchTripData, updateStopField, setStops };
 }

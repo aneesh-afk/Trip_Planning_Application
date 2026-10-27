@@ -5,13 +5,15 @@ import {
   validateExpenseEntry,
   calculateEqualSplits,
   simplifyDebts,
-  validateBookingDates,
 } from '../src/utils/tripCalculations.js';
 
-describe('Trip Planning Application - Unit Tests', () => {
-  // UNIT 1: calculateBudgetSummary [Budget & Expense Module]
-  describe('Unit 1: calculateBudgetSummary(budgetTotal, expenses, tripDurationDays)', () => {
-    test('computes burn rate and remaining balance within budget', () => {
+describe('Trip Planning Application - 10 Unit Tests (5 per Module)', () => {
+  // =========================================================================
+  // MODULE 1: Budget & Expense Tracking Module (5 Test Cases)
+  // =========================================================================
+  describe('Module 1: Budget & Expense Tracking Module', () => {
+    // Case 1 [PASS]: calculateBudgetSummary - burn rate & balance
+    test('Case 1 (PASS): computes burn rate and remaining balance within budget', () => {
       const expenses = [
         { cost: 4500 },
         { cost: 3000 },
@@ -24,10 +26,10 @@ describe('Trip Planning Application - Unit Tests', () => {
       assert.equal(summary.remaining, 6500);
       assert.equal(summary.isOverBudget, false);
       assert.equal(summary.overAmount, 0);
-      assert.equal(summary.pctUsed, 74);
     });
 
-    test('flags over-budget alert when expenses exceed target', () => {
+    // Case 2 [PASS]: calculateBudgetSummary - over-budget alert
+    test('Case 2 (PASS): flags over-budget alert when expenses exceed target', () => {
       const expenses = [
         { cost: 15000 },
         { cost: 12200 },
@@ -39,16 +41,26 @@ describe('Trip Planning Application - Unit Tests', () => {
       assert.equal(summary.remaining, -2200);
       assert.equal(summary.isOverBudget, true);
       assert.equal(summary.overAmount, 2200);
-      assert.equal(summary.pctUsed, 109);
     });
-  });
 
-  // UNIT 2: validateExpenseEntry [Budget & Expense Module]
-  describe('Unit 2: validateExpenseEntry(expense, tripStartDate, tripEndDate)', () => {
-    const tripStart = '2026-11-01';
-    const tripEnd = '2026-11-07';
+    // Case 3 [FAIL]: calculateBudgetSummary - percentage calculation
+    // FAILS because pctUsed in calculateBudgetSummary was modified to omit '* 100'
+    test('Case 3 (FAIL): accurately calculates percentage of budget consumed', () => {
+      const expenses = [
+        { cost: 4500 },
+        { cost: 3000 },
+        { cost: 11000 },
+      ]; // total = 18500 out of 25000 -> 74%
+      const summary = calculateBudgetSummary(25000, expenses, 5);
 
-    test('accepts valid expense within dates and category', () => {
+      // Expected: 74%, Actual from modified code: 1% (18500 / 25000 = 0.74 rounded to 1)
+      assert.equal(summary.pctUsed, 74, 'Expected budget consumption to be 74%');
+    });
+
+    // Case 4 [PASS]: validateExpenseEntry - valid expense
+    test('Case 4 (PASS): accepts valid expense within dates and recognized category', () => {
+      const tripStart = '2026-11-01';
+      const tripEnd = '2026-11-07';
       const validExpense = {
         title: 'Dinner at Bukhara Delhi',
         amount: 4500,
@@ -61,7 +73,10 @@ describe('Trip Planning Application - Unit Tests', () => {
       assert.equal(result.errors.length, 0);
     });
 
-    test('rejects negative amount, missing title, and invalid category', () => {
+    // Case 5 [PASS]: validateExpenseEntry - rejection of invalid entries
+    test('Case 5 (PASS): rejects negative amount, missing title, and invalid category', () => {
+      const tripStart = '2026-11-01';
+      const tripEnd = '2026-11-07';
       const invalidExpense = {
         title: '   ',
         amount: -250,
@@ -75,52 +90,43 @@ describe('Trip Planning Application - Unit Tests', () => {
       assert.ok(result.errors.some((e) => e.includes('positive number')));
       assert.ok(result.errors.some((e) => e.includes('Invalid category')));
     });
-
-    test('rejects expense dated outside trip boundaries', () => {
-      const outOfBoundsExpense = {
-        title: 'Airport Taxi',
-        amount: 800,
-        category: 'transport',
-        date: '2026-10-25', // Before trip start
-      };
-      const result = validateExpenseEntry(outOfBoundsExpense, tripStart, tripEnd);
-
-      assert.equal(result.valid, false);
-      assert.ok(result.errors.some((e) => e.includes('cannot be earlier than trip start')));
-    });
   });
 
-  // UNIT 3: calculateEqualSplits [Group Trip & Expense Sharing Module]
-  describe('Unit 3: calculateEqualSplits(totalAmount, memberIds)', () => {
-    test('splits ₹1,000 across 3 members with remainder assigned to last member', () => {
-      const splits = calculateEqualSplits(1000, ['user_A', 'user_B', 'user_C']);
-
-      assert.equal(splits.length, 3);
-      assert.equal(splits[0].amount, 333.33);
-      assert.equal(splits[1].amount, 333.33);
-      assert.equal(splits[2].amount, 333.34);
-
-      // Verify exact sum without floating point leakage
-      const sum = splits.reduce((acc, s) => acc + s.amount, 0);
-      assert.equal(Math.round(sum * 100) / 100, 1000);
-    });
-
-    test('splits evenly when divisible', () => {
+  // =========================================================================
+  // MODULE 2: Group Trip & Expense Sharing Module (5 Test Cases)
+  // =========================================================================
+  describe('Module 2: Group Trip & Expense Sharing Module', () => {
+    // Case 6 [PASS]: calculateEqualSplits - even division
+    test('Case 6 (PASS): splits expense evenly when divisible without remainder', () => {
       const splits = calculateEqualSplits(2400, ['u1', 'u2', 'u3', 'u4']);
 
       assert.equal(splits.length, 4);
       splits.forEach((s) => assert.equal(s.amount, 600));
     });
 
-    test('throws error for non-positive amount or empty members', () => {
+    // Case 7 [FAIL]: calculateEqualSplits - penny remainder assignment
+    // FAILS because calculateEqualSplits was modified to omit remainder distribution to the last member
+    test('Case 7 (FAIL): splits ₹1,000 across 3 members with remainder assigned to last member', () => {
+      const splits = calculateEqualSplits(1000, ['user_A', 'user_B', 'user_C']);
+
+      assert.equal(splits.length, 3);
+      assert.equal(splits[0].amount, 333.33);
+      assert.equal(splits[1].amount, 333.33);
+      // Expected: 333.34 for last member. Actual from modified code: 333.33 (summing to 999.99)
+      assert.equal(splits[2].amount, 333.34, 'Expected last member to receive remainder penny (333.34)');
+
+      const sum = splits.reduce((acc, s) => acc + s.amount, 0);
+      assert.equal(Math.round(sum * 100) / 100, 1000, 'Sum of split shares must equal 1000');
+    });
+
+    // Case 8 [PASS]: calculateEqualSplits - boundary validation errors
+    test('Case 8 (PASS): throws error for non-positive amount or empty members array', () => {
       assert.throws(() => calculateEqualSplits(-500, ['u1']), /greater than zero/);
       assert.throws(() => calculateEqualSplits(500, []), /At least one member/);
     });
-  });
 
-  // UNIT 4: simplifyDebts [Group Trip & Expense Sharing Module]
-  describe('Unit 4: simplifyDebts(members, sharedExpenses)', () => {
-    test('simplifies single-payer 3-way split into 2 direct settlements', () => {
+    // Case 9 [PASS]: simplifyDebts - single-payer 3-way split simplification
+    test('Case 9 (PASS): simplifies single-payer 3-way split into 2 direct settlements', () => {
       const members = [
         { user_id: 'A', user: { display_name: 'Aarav' } },
         { user_id: 'B', user: { display_name: 'Bhavna' } },
@@ -143,13 +149,13 @@ describe('Trip Planning Application - Unit Tests', () => {
 
       const { settlements } = simplifyDebts(members, sharedExpenses);
 
-      // Only 2 transactions needed instead of complex pairwise swaps
       assert.equal(settlements.length, 2);
       assert.ok(settlements.some((s) => s.from === 'B' && s.to === 'A' && s.amount === 1000));
       assert.ok(settlements.some((s) => s.from === 'C' && s.to === 'A' && s.amount === 1000));
     });
 
-    test('minimizes multi-transaction circular debts', () => {
+    // Case 10 [PASS]: simplifyDebts - circular debt minimization
+    test('Case 10 (PASS): minimizes multi-transaction circular debts', () => {
       const members = [
         { user_id: 'A', user: { display_name: 'Aarav' } },
         { user_id: 'B', user: { display_name: 'Bhavna' } },
@@ -158,9 +164,7 @@ describe('Trip Planning Application - Unit Tests', () => {
 
       // A pays ₹1200 split among A, B, C (₹400 each)
       // B pays ₹600 split between A and B (₹300 each)
-      // Net: A paid 1200, owes 400 + 300 = 700 -> net +500
-      //      B paid 600, owes 400 + 300 = 700 -> net -100
-      //      C paid 0, owes 400 -> net -400
+      // Net: A net +500, B net -100, C net -400
       const sharedExpenses = [
         {
           id: 'exp-1',
@@ -188,28 +192,6 @@ describe('Trip Planning Application - Unit Tests', () => {
       assert.equal(settlements.length, 2);
       assert.ok(settlements.some((s) => s.from === 'C' && s.to === 'A' && s.amount === 400));
       assert.ok(settlements.some((s) => s.from === 'B' && s.to === 'A' && s.amount === 100));
-    });
-  });
-
-  // UNIT 5 (Bonus): validateBookingDates [Bookings Management Module]
-  describe('Unit 5 (Bonus): validateBookingDates(startDate, endDate, tripStartDate, tripEndDate)', () => {
-    test('accepts valid hotel dates within trip duration', () => {
-      const res = validateBookingDates('2026-11-02', '2026-11-05', '2026-11-01', '2026-11-10');
-      assert.equal(res.valid, true);
-      assert.equal(res.error, null);
-      assert.equal(res.warnings.length, 0);
-    });
-
-    test('rejects check-out preceding check-in', () => {
-      const res = validateBookingDates('2026-11-05', '2026-11-02', '2026-11-01', '2026-11-10');
-      assert.equal(res.valid, false);
-      assert.equal(res.error, 'Check-out/arrival date cannot precede start date.');
-    });
-
-    test('flags warnings when booking extends past trip boundaries', () => {
-      const res = validateBookingDates('2026-10-30', '2026-11-12', '2026-11-01', '2026-11-10');
-      assert.equal(res.valid, true);
-      assert.equal(res.warnings.length, 2);
     });
   });
 });

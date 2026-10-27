@@ -154,7 +154,11 @@ export default function ItineraryTimelineView({
                     {act.image_url ? (
                       <img
                         src={act.image_url}
-                        alt=""
+                        alt={act.title || "Activity"}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://picsum.photos/seed/${encodeURIComponent(act.title || "travel")}/200/200`;
+                        }}
                         className="w-full h-full object-cover"
                       />
                     ) : (
